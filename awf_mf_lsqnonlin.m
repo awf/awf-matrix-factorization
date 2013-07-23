@@ -2,6 +2,9 @@ function [Aout,Bout,output] = awf_mf_lsqnonlin(W,M,A0,B0, opts)
 
 if 0
   %%
+  vec = @(x) x(:);
+  rms = @(Ap,Bp) sqrt(sum(vec(W.*(M-Ap*Bp')).^2)/nnz(W));
+
   load_dino
   %M = M(1:36,1:150);
   %W = W(1:36,1:150);
@@ -15,21 +18,19 @@ if 0
   opts.gauge_fix_weight = 0;
   
   opts.lsopts.Algorithm = 'awf';
-  opts.awopts.MaxFunEvals = 2400;
+  opts.awopts.MaxFunEvals = 240;
   opts.awopts.Display = 'final';
   opts.awopts.USE_LINMIN = 0;
   opts.awopts.DECOMP_LU = 1;
-  opts.awopts.USE_JTJ = 0;
+  opts.awopts.USE_JTJ = 1;
   tic
   [A1,B1,out1] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
-  vec = @(x) x(:);
-  fprintf('awf rms = %g\n', sqrt(sum(vec(W.*(M-A1*B1')).^2)/nnz(W)));
+  fprintf('awf rms = %g\n', rms(A1,B1));
   toc
 
   clf
   loglog(9+(1:size(out1.log_data,1)), out1.log_data(:,2))
   
-  %%
   profile viewer
   
   %%
@@ -37,9 +38,9 @@ if 0
   tic
   opts = awf_mf_lsqnonlin;
   % opts.lsopts.Display = 'iter';
-  opts.lsopts.MaxIter = 400;
+  opts.lsopts.MaxIter = 800;
   [A,B,out] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
-  fprintf('lsq rms = %g\n', sqrt(mean(vec(W.*(M-A*B')).^2)));
+  fprintf('lsq rms = %g\n', rms(A,B));
   toc
 
   out
@@ -48,7 +49,7 @@ if 0
   clf
   plot_tracks(M,W,'k.');
   hold on
-  set(plot_tracks(A*B','r-'), 'color', 'r');
+  %set(plot_tracks(A*B','r-'), 'color', 'r');
   set(plot_tracks(A1*B1','b-'), 'color', 'b');
 end
 
