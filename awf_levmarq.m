@@ -10,7 +10,7 @@ if nargin == 1 && strcmp(x, 'opts')
   opts.MaxFunEvals = 1000;
   opts.Display = 'iter';
   opts.DECOMP_LU = 0;  % Use backslash or PCG?
-  opts.LAMBDA_MIN = 1e-10;
+  opts.LAMBDA_MIN = 1e-12;
   opts.LAMBDA_DECREASE = 2;
   opts.LAMBDA_MAX = 1e8;
   opts.LAMBDA_INCREASE_BASE = 10;
@@ -97,34 +97,65 @@ while true
       fprintf('awf_levmarq: iter %2d, lambda=%6.2e, norm=%4.2e, ', iter, lm_lambda, norm_estimate);
       fprintf('solve ');
     end
-    
-    % The computations below assume J is quite portrait, so
-    % tend to work with J'*J -- may need to be changed for other
-    % shapes/sparsity patterns.  For example, replacing
-    %   (J' J + mu I) \ J' e 
-    % by
-    %   [J ; sqrt(mu) I] \ [e; O]
+
+    % Solve (J'*J + \lambda I) x = J'e
     if opts.DECOMP_LU
-      N = size(J,2);
       if iter == 1 && size(J,1) < size(J,2)
         fprintf(2, 'awf_levmarq: warning: J not portrait\n');
       end
       
       if opts.USE_JTJ
-        JtJ = J'*J;
+        AugmentedJtJ = J'*J + lm_lambda*Id;
+        Jte = -(J'*e);
         %Sometimes this may be faster:
         %JtJ = J'*J;
         %indices = awf_eyeind(nparams);
         %JtJ(indices) = JtJ(indices) + (lm_lambda*norm_estimate);
-        dx = -(JtJ + lm_lambda*Id) \ (J'*e);
+        dx = AugmentedJtJ \ Jte;
+        
+        A=J(:,1:72*4); B = J(:,72*4+1:end);
+        AA = A'*A; AB= A'*B; BB= B'*B;
+        Ia = speye(4*72);
+        Ib = speye(4*319);
+        L = BB+lm_lambda*Ib; 
+        iL = L;
+        LAB = AB';
+        for k=1:319, 
+          r=(k-1)*4+(1:4); 
+          Lrr = L(r,r);
+          
+          iL(r,r) = inv(L(r,r)); 
+
+          %LAB(r,:) = Lrr\LAB(r,:);
+        end
+        LAB1 = iL*AB';
+        LAB = L\AB';
+        %mlp_assert_equal LAB LAB1 1e-5
+        Aschur = AA+lm_lambda*Ia - AB*LAB; 
+        AApluslI= AA+lm_lambda*Ia;
+        ABLAB = AB*LAB;
+        Aschur = AApluslI - ABLAB; 
+        e1 = Jte(1:4*72);
+        e2 = Jte(4*72+1:end);
+        
+        rhs = e1 - AB*(iL*e2);
+        dx1 = Aschur \ rhs;
+        
+        JTJMul = @(x) AA*x + lm_lambda*x - AB*(LAB*x);
+        
+        [dx1, ~] = pcg(JTJMul, rhs, 1e-5, 20, AApluslI);
+        
+        dx2 = iL*(e2 - AB'*dx1);
+        dx = [dx1; dx2];
       else
-        dx = -[J; lm_lambda*Id]\[e; zeros(nparams,1)];
+        dx = [J; lm_lambda*Id]\[-e; zeros(nparams,1)];
       end
     else
       % pcg
-      AugmentedJtJ = J'*J + (lm_lambda)*speye(nparams);
+      AugmentedJtJ = J'*J + lm_lambda*Id;
+      Jte = -(J'*e);
       PCG_ITERS = 20;
-      [dx, ~] = pcg(AugmentedJtJ, -(J'*e), 1e-7 * norm_estimate, PCG_ITERS); %;, Preconditioner);
+      [dx, ~] = pcg(AugmentedJtJ, Jte, 1e-7 * norm_estimate, PCG_ITERS); %;, Preconditioner);
       if ~all(isfinite(dx))
         error('infinite dx...');
       end
