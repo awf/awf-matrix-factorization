@@ -9,14 +9,17 @@ if nargin == 1 && strcmp(x, 'opts')
   opts.MaxIter = 100;
   opts.MaxFunEvals = 1000;
   opts.Display = 'iter';
-  opts.DECOMP_LU = 0;  % Use backslash or PCG?
   opts.LAMBDA_MIN = 1e-12;
   opts.LAMBDA_DECREASE = 2;
   opts.LAMBDA_MAX = 1e8;
   opts.LAMBDA_INCREASE_BASE = 10;
   opts.USE_LINMIN = 1;
   opts.CHECK_DERIVATIVES = 1;
-  opts.USE_JTJ = 0;
+  
+  % Normal equations options
+  opts.SCHUR_SPLIT = 0;
+  opts.USE_JTJ = 1;
+  opts.DECOMP_LU = 0;  % Use backslash or PCG?
   x = opts;
   return
 end
@@ -77,9 +80,9 @@ while true
   % Estimate Jacobian norm and preconditioner for PCG
   diag_JtJ = sum(J.^2,1)';
   norm_estimate = full(mean(diag_JtJ));
-  if ~opts.DECOMP_LU
-    Preconditioner = spdiags(diag_JtJ,0,nparams,nparams);
-  end
+%   if ~opts.DECOMP_LU
+%     Preconditioner = spdiags(diag_JtJ,0,nparams,nparams);
+%   end
 
   % Do a variety of line-searches using this Jacobian,
   % varying lambda each time, as well as LAMBDA_INCREASE 
@@ -99,57 +102,35 @@ while true
     end
 
     % Solve (J'*J + \lambda I) x = J'e
-    if opts.DECOMP_LU
-      if iter == 1 && size(J,1) < size(J,2)
-        fprintf(2, 'awf_levmarq: warning: J not portrait\n');
-      end
+    if opts.SCHUR_SPLIT > 0
+      A = J(:,1:opts.SCHUR_SPLIT);
+      B = J(:,opts.SCHUR_SPLIT+1:end);
       
-      if opts.USE_JTJ
-        AugmentedJtJ = J'*J + lm_lambda*Id;
-        Jte = -(J'*e);
-        %Sometimes this may be faster:
-        %JtJ = J'*J;
-        %indices = awf_eyeind(nparams);
-        %JtJ(indices) = JtJ(indices) + (lm_lambda*norm_estimate);
-        dx = AugmentedJtJ \ Jte;
-        
-        A=J(:,1:72*4); B = J(:,72*4+1:end);
-        AA = A'*A; AB= A'*B; BB= B'*B;
-        Ia = speye(4*72);
-        Ib = speye(4*319);
-        L = BB+lm_lambda*Ib; 
-        iL = L;
-        LAB = AB';
-        for k=1:319, 
-          r=(k-1)*4+(1:4); 
-          Lrr = L(r,r);
-          
-          iL(r,r) = inv(L(r,r)); 
-
-          %LAB(r,:) = Lrr\LAB(r,:);
-        end
-        LAB1 = iL*AB';
-        LAB = L\AB';
-        %mlp_assert_equal LAB LAB1 1e-5
-        Aschur = AA+lm_lambda*Ia - AB*LAB; 
-        AApluslI= AA+lm_lambda*Ia;
-        ABLAB = AB*LAB;
-        Aschur = AApluslI - ABLAB; 
-        e1 = Jte(1:4*72);
-        e2 = Jte(4*72+1:end);
-        
-        rhs = e1 - AB*(iL*e2);
-        dx1 = Aschur \ rhs;
-        
-        JTJMul = @(x) AA*x + lm_lambda*x - AB*(LAB*x);
-        
-        [dx1, ~] = pcg(JTJMul, rhs, 1e-5, 20, AApluslI);
-        
-        dx2 = iL*(e2 - AB'*dx1);
-        dx = [dx1; dx2];
-      else
-        dx = [J; lm_lambda*Id]\[-e; zeros(nparams,1)];
-      end
+      AA = A'*A; AB= A'*B; BB= B'*B;
+      Ia = speye(opts.SCHUR_SPLIT);
+      Ib = speye(nparams - opts.SCHUR_SPLIT);
+      L = BB+lm_lambda*Ib;
+      %iL = inv(L);
+      LAB = L\AB';
+      Jte = -J'*e;
+      e1 = Jte(1:opts.SCHUR_SPLIT);
+      e2 = Jte(opts.SCHUR_SPLIT+1:end);
+      
+      iLe2 = L\e2;
+      rhs = e1 - AB*iLe2;
+      
+      JTJMul = @(x) AA*x + lm_lambda*x - AB*(LAB*x);
+      
+      [dx1, ~] = pcg(JTJMul, rhs, 1e-5, 20, AA + lm_lambda*Ia);
+      
+      dx2 = iLe2 - LAB*dx1;
+      dx = [dx1; dx2];
+    elseif opts.USE_JTJ
+      AugmentedJtJ = J'*J + lm_lambda*Id;
+      Jte = -(J'*e);
+      dx = AugmentedJtJ \ Jte;
+    elseif opts.DECOMP_LU
+      dx = [J; lm_lambda*Id]\[-e; zeros(nparams,1)];
     else
       % pcg
       AugmentedJtJ = J'*J + lm_lambda*Id;
@@ -160,7 +141,7 @@ while true
         error('infinite dx...');
       end
     end
-
+    
     if opts.USE_LINMIN
         % linmin: Line search along dx
         % Define 1D function for linmin
