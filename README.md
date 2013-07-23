@@ -22,8 +22,8 @@ A simple implementation of low-rank matrix factorization using MATLAB's built-in
 
 Sources
 =======
-damped_wiberg.zip from [[http://www.vision.is.tohoku.ac.jp/us/download]]
+damped_wiberg.zip from [http://www.vision.is.tohoku.ac.jp/us/download]
 md5 hash 6E72535A32F06045C9C7EC626A38D543
 
-Data from [[http://www.robots.ox.ac.uk/~amb]]
+Data from [http://www.robots.ox.ac.uk/~amb]
 
