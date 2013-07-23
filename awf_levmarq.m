@@ -16,26 +16,13 @@ if nargin == 1 && strcmp(x, 'opts')
   opts.LAMBDA_INCREASE_BASE = 10;
   opts.USE_LINMIN = 1;
   opts.CHECK_DERIVATIVES = 1;
+  opts.USE_JTJ = 0;
   x = opts;
   return
 end
 
 if nargin < 3
   opts = awf_levmarq('opts');
-end
-
-nparams = length(x);
-
-sumsq = @(x) sum(x.^2);
-
-% Call function
-x = x(:);
-[e,J] = func(x);
-f = sum(e.^2);
-
-%% Optionally check the Jacobian
-if opts.CHECK_DERIVATIVES
-  check_derivatives(func,x,J);
 end
 
 switch opts.Display
@@ -49,9 +36,24 @@ switch opts.Display
     error(['Display [' opts.Display '] not recognized']);
 end
 
+sumsq = @(x) sum(x.^2);
+
+% Call function
+x = x(:);
+[e,J] = func(x);
+f = sum(e.^2);
+
+nparams = length(x);
+nresiduals = numel(e);
+
+%% Optionally check the Jacobian
+if opts.CHECK_DERIVATIVES
+  check_derivatives(func,x,J);
+end
+
 if VERBOSE >= 1
   fprintf('awf_levmarq: Beginning LM params %d, residuals %d, error = %g\n', ...
-    nparams, numel(e), f)
+    nparams, nresiduals, f)
 end
 
 %% Begin the optimization
@@ -66,6 +68,7 @@ lm_lambda = 1e-6;
 log_data = [lm_lambda f 0 1];
 funevals = 0;
 iter = 0;
+Id = speye(nparams);
 while true
   % This outer loop is called for each Jacobian computation
   % We assume that computing J is an expensive operation so 
@@ -107,12 +110,16 @@ while true
         fprintf(2, 'awf_levmarq: warning: J not portrait\n');
       end
       
-      JtJ = J'*J + lm_lambda*speye(N);
-      %Sometimes this may be faster:
-      %JtJ = J'*J;
-      %indices = awf_eyeind(N);
-      %JtJ(indices) = JtJ(indices) + (lm_lambda*norm_estimate);
-      dx = -(JtJ \ (J'*e));
+      if opts.USE_JTJ
+        JtJ = J'*J;
+        %Sometimes this may be faster:
+        %JtJ = J'*J;
+        %indices = awf_eyeind(nparams);
+        %JtJ(indices) = JtJ(indices) + (lm_lambda*norm_estimate);
+        dx = -(JtJ + lm_lambda*Id) \ (J'*e);
+      else
+        dx = -[J; lm_lambda*Id]\[e; zeros(nparams,1)];
+      end
     else
       % pcg
       AugmentedJtJ = J'*J + (lm_lambda)*speye(nparams);

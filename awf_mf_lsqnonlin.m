@@ -15,17 +15,19 @@ if 0
   opts.gauge_fix_weight = 0;
   
   opts.lsopts.Algorithm = 'awf';
-  opts.awopts.MaxFunEvals = 200400;
+  opts.awopts.MaxFunEvals = 2400;
   opts.awopts.Display = 'final';
   opts.awopts.USE_LINMIN = 0;
   opts.awopts.DECOMP_LU = 1;
+  opts.awopts.USE_JTJ = 0;
   tic
   [A1,B1,out1] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
   vec = @(x) x(:);
   fprintf('awf rms = %g\n', sqrt(sum(vec(W.*(M-A1*B1')).^2)/nnz(W)));
   toc
+
   clf
-  loglog(out1.log_data(:,2))
+  loglog(9+(1:size(out1.log_data,1)), out1.log_data(:,2))
   
   %%
   profile viewer
