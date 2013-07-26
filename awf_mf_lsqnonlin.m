@@ -1,11 +1,12 @@
 function [Aout,Bout,output] = awf_mf_lsqnonlin(W,M,A0,B0, opts)
 
-if 0
+if nargin == 0
   %%
   vec = @(x) x(:);
-  rms = @(Ap,Bp) sqrt(sum(vec(W.*(M-Ap*Bp')).^2)/nnz(W));
 
-  load_dino
+  [M,W] = load_dino;
+
+  rms = @(Ap,Bp) sqrt(sum(vec(W.*(M-Ap*Bp')).^2)/nnz(W));
   %M = M(1:36,1:150);
   %W = W(1:36,1:150);
   rng(1);
@@ -13,11 +14,13 @@ if 0
   B0 = randn(size(M,2), 4);
   
   profile on
-  opts = awf_mf_lsqnonlin;
+  opts = awf_mf_lsqnonlin('opts');
   opts.regularizer_lambda = 0;
   opts.gauge_fix_weight = 0;
   
-  opts.lsopts.Algorithm = 'awf';
+  opts.lsopts.Algorithm = 'scg';
+  opts.lsopts.MaxIter = 40000;
+
   opts.awopts.MaxFunEvals = 4000;
   opts.awopts.Display = 'final';
   opts.awopts.USE_LINMIN = 0;
@@ -30,16 +33,17 @@ if 0
   fprintf('awf rms = %g\n', rms(A1,B1));
   toc
 
-  
   clf
-  loglog(9+(1:size(out1.log_data,1)), out1.log_data(:,2))
-  hold on
   loglog(9+(1:size(out2.log_data,1)), out2.log_data(:,2))
   
-  profile viewer
+  return
   
+  %%
+  profile viewer
+
+  %%
   tic
-  opts = awf_mf_lsqnonlin;
+  opts = awf_mf_lsqnonlin('opts');
   % opts.lsopts.Display = 'iter';
   opts.lsopts.MaxIter = 800;
   [A,B,out] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
@@ -56,7 +60,7 @@ if 0
   set(plot_tracks(A1*B1','b-'), 'color', 'b');
 end
 
-if nargin == 0
+if nargin == 1 && strcmp(W, 'opts')
   opts.regularizer_lambda = 1e-5;
   opts.gauge_fix_weight = 1e-5;
   opts.lsopts = optimset('lsqnonlin');
@@ -81,9 +85,9 @@ nresiduals = length(Mvalues);
 
 r = size(A0,2);
 [m,n] = size(M);
-mlp_assert_equal m size(A0,1)
-mlp_assert_equal n size(B0,1)
-mlp_assert_equal r size(B0,2)
+au_assert_equal m size(A0,1)
+au_assert_equal n size(B0,1)
+au_assert_equal r size(B0,2)
 
 % M - A'*B  (transposed formulation as matlab is column-major)
 A0 = A0';
@@ -113,31 +117,46 @@ if 0
     Jfast \ randn(size(Jfast,1),1);
     toc
   end
-  mlp_assert_equal Jfast sparse(Jslow) 1e-8
+  au_assert_equal Jfast sparse(Jslow) 1e-8
   
   [A0test,B0test] = unpack(v0);
-  mlp_assert_equal A0test A0
-  mlp_assert_equal B0test B0
+  au_assert_equal A0test A0
+  au_assert_equal B0test B0
 end
 
 gauge_fix_target = v0(1:r*r);
 
-if strcmp(opts.lsopts.Algorithm, 'awf')
-  % Call awf_levmarq
-  awopts = opts.awopts;
-  awopts.CHECK_DERIVATIVES = 0;
-  [v, ~, log_data] = awf_levmarq(v0, @f, awopts);
-  output.exitflag = 1;
-  output.log_data = log_data;
-else
-  % Call lsqnonlin
-  lsopts = opts.lsopts;
-  lsopts.Jacobian = 'on';
-  lsopts.PrecondBandwidth = r;
-  
-  [v,~,~, exitflag, lmout] = lsqnonlin(@f, v0, [], [], lsopts);
-  output = lmout;
-  output.exitflag = exitflag;
+switch opts.lsopts.Algorithm
+  case 'scg'
+    %	OPTIONS(1) is set to 1 to display error, 0 warning, -1 nothing
+    %	OPTIONS(2) absolute diff of steps
+    %	OPTIONS(3) abs diff of f
+    %	OPTIONS(9) is set to 1 to check the user defined gradient function.
+    %	OPTIONS(14) is the maximum number of iterations; default 100.
+    MaxIter = opts.lsopts.MaxIter;
+    options = [0 1e-8 1e-8 0 0 0 0 0 0 0 0 0 0 MaxIter 0 0 0 0 ];
+    options(9) = 1; % Check der
+    [v, options, log] = scg(@scalar_f, v0', options, @scalar_grad_f);
+    output.scg_out = options;
+    output.log_data = log([1 1],:)';
+    
+  case 'awf'
+    % Call awf_levmarq
+    awopts = opts.awopts;
+    awopts.CHECK_DERIVATIVES = 0;
+    [v, ~, log_data] = awf_levmarq(v0, @f, awopts);
+    output.exitflag = 1;
+    output.log_data = log_data;
+
+  otherwise
+    % Call lsqnonlin
+    lsopts = opts.lsopts;
+    lsopts.Jacobian = 'on';
+    lsopts.PrecondBandwidth = r;
+    
+    [v,~,~, exitflag, lmout] = lsqnonlin(@f, v0, [], [], lsopts);
+    output = lmout;
+    output.exitflag = exitflag;
 end
 
 [Aout,Bout] = unpack(v);
@@ -153,6 +172,26 @@ Bout = Bout';
     % Unpack
     A = reshape(v(1:m*r), r,m);
     B = reshape(v((1:n*r)+m*r), r,n);
+  end
+
+  function fval = scalar_f(v)
+    e = f(v);
+    fval = sum(e.^2);
+  end
+
+  function gradf = scalar_grad_f(v)
+    [A,B] = unpack(v);
+    
+    % Compute residual
+    e = Mvalues - sum(A(:,i).*B(:,j));
+    
+    i_reps = bsxfun(@plus, (i-1)*r, 1:r);
+    j_reps = bsxfun(@plus, (j-1)*r, 1:r);
+
+    au_whist
+    GA = au_whist(i_reps', bsxfun(@times, e, B(:,j)), m*r);
+    GB = au_whist(j_reps', bsxfun(@times, e, A(:,i)), n*r);
+    gradf = -2*full([GA GB]);
   end
 
   function [residuals, Jacobian] = f(v)
