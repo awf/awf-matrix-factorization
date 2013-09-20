@@ -9,7 +9,7 @@ for sd = 1:100
         load_giraffe
         r = 6;
       case 'dino'
-        load_dino
+        [M,W, Mx, My] = load_dino;
         r = 4;
     end
     

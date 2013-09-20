@@ -18,7 +18,7 @@ if nargin == 0
   opts.regularizer_lambda = 0;
   opts.gauge_fix_weight = 0;
   
-  opts.lsopts.Algorithm = 'scg';
+  %opts.lsopts.Algorithm = 'scg';
   opts.lsopts.MaxIter = 40000;
 
   opts.awopts.MaxFunEvals = 4000;
@@ -69,7 +69,7 @@ if nargin == 1 && strcmp(W, 'opts')
   opts.lsopts.Display = 'off';
   opts.lsopts.MaxIter = 800;
   opts.lsopts.TolFun = 1e-8;
-  opts.awopts = awf_levmarq('opts');
+  opts.awopts = au_levmarq('opts');
   Aout = opts;
   return
 end
@@ -144,7 +144,7 @@ switch opts.lsopts.Algorithm
     % Call awf_levmarq
     awopts = opts.awopts;
     awopts.CHECK_DERIVATIVES = 0;
-    [v, ~, log_data] = awf_levmarq(v0, @f, awopts);
+    [v, ~, log_data] = au_levmarq(v0, @f, awopts);
     output.exitflag = 1;
     output.log_data = log_data;
 
