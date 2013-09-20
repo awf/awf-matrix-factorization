@@ -45,24 +45,26 @@ for sd = 1:100
     
     nu = 1e-5;
     test_init = {
-       0 0 'lm'
+       100    0 'dw'
+    %   0 0 'lm'
+       0 0 'awflm'
+    %   0 0 'lsq'
     %   0 nu 'lm'
     %   nu 0 'lm'
     %   nu nu 'lm'
-       30 nu 'wl'
-       9 nu 'wl'
-       9    0 'dw'
-       100    0 'dw'
+   %    30 nu 'wl'
+   %    9 nu 'wl'
+   %    100    0 'dw'
      %  0  0 'damped newton'
      % nu  0 'damped newton'
      %  0  0 'lm'
      % nu nu 'lm'
       };
     
-    for k=1:length(test_init)
+    for k=1:size(test_init,1)
       test.alg = test_init{k,3};
       switch test.alg
-        case 'lm'
+        case {'lm', 'lsq', 'awflm', 'scg'}
           test.regularizer_lambda = test_init{k,1};
           test.gauge_fix_weight =  test_init{k,2};
         case {'dw', 'wl'}
@@ -77,7 +79,7 @@ end
 tests
 
 %%
-save_file = 'c:\tmp\mf_tests_jul21.mat';
+save_file = 'c:\tmp\mf_tests_aug20.mat';
 
 if exist(save_file, 'file')
   error(['!del ' save_file]);

@@ -1,7 +1,27 @@
 function [Aout,Bout,output] = awf_mf_lsqnonlin(W,M,A0,B0, opts)
+% AWF_MF_LSQNONLIN  Matrix factorization via standard Gauss-Newton
+%                  OPTS = AWF_MF_LSQNONLIN('opts')
+%                  AWF_MF_LSQNONLIN(W,M,A0,B0, OPTS)
+
+if nargin == 1 && strcmp(W, 'opts')
+  opts.regularizer_lambda = 0;
+  opts.gauge_fix_weight = 0;
+  opts.alg = 'lsqnonlin'; % options: awf, scg, lsqnonlin
+  opts.lsopts = optimset('lsqnonlin');
+  opts.lsopts.Algorithm = 'levenberg-marquardt';
+  opts.lsopts.LargeScale = 'on';
+  opts.lsopts.Display = 'off';
+  opts.lsopts.MaxIter = 800;
+  opts.lsopts.TolFun = 1e-8;
+  opts.awopts = au_levmarq('opts');
+  opts.awopts.USE_LINMIN = 0;
+  opts.awopts.CHECK_DERIVATIVES = 0;
+  Aout = opts;
+  return
+end
 
 if nargin == 0
-  %%
+  %% Test/demo code
   vec = @(x) x(:);
 
   [M,W] = load_dino;
@@ -60,20 +80,6 @@ if nargin == 0
   set(plot_tracks(A1*B1','b-'), 'color', 'b');
 end
 
-if nargin == 1 && strcmp(W, 'opts')
-  opts.regularizer_lambda = 1e-5;
-  opts.gauge_fix_weight = 1e-5;
-  opts.lsopts = optimset('lsqnonlin');
-  opts.lsopts.Algorithm = 'levenberg-marquardt';
-  opts.lsopts.LargeScale = 'on';
-  opts.lsopts.Display = 'off';
-  opts.lsopts.MaxIter = 800;
-  opts.lsopts.TolFun = 1e-8;
-  opts.awopts = au_levmarq('opts');
-  Aout = opts;
-  return
-end
-
 [i,j] = find(W);
 Mvalues = M(W~=0)';
 
@@ -126,7 +132,7 @@ end
 
 gauge_fix_target = v0(1:r*r);
 
-switch opts.lsopts.Algorithm
+switch opts.alg
   case 'scg'
     %	OPTIONS(1) is set to 1 to display error, 0 warning, -1 nothing
     %	OPTIONS(2) absolute diff of steps
@@ -141,14 +147,14 @@ switch opts.lsopts.Algorithm
     output.log_data = log([1 1],:)';
     
   case 'awf'
-    % Call awf_levmarq
+    % Call au_levmarq
     awopts = opts.awopts;
     awopts.CHECK_DERIVATIVES = 0;
     [v, ~, log_data] = au_levmarq(v0, @f, awopts);
     output.exitflag = 1;
     output.log_data = log_data;
 
-  otherwise
+   case 'lsqnonlin'
     % Call lsqnonlin
     lsopts = opts.lsopts;
     lsopts.Jacobian = 'on';
@@ -157,6 +163,8 @@ switch opts.lsopts.Algorithm
     [v,~,~, exitflag, lmout] = lsqnonlin(@f, v0, [], [], lsopts);
     output = lmout;
     output.exitflag = exitflag;
+  otherwise
+    error('unknown alg');
 end
 
 [Aout,Bout] = unpack(v);
