@@ -1,5 +1,7 @@
 function [M,W, Mx, My] = load_dino
 % LOAD_DINO  Load data for "rotating dinosaur" dataset
+%  [M,W, Mx, My] = load_dino
+
 
 M = load('data/rotdino.M_inliers.txt');
 
