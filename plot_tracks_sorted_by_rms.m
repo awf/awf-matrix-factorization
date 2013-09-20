@@ -6,6 +6,7 @@ for k=1:length(i)
   plot_tracks(r.A*r.B', true); 
   hold on; 
   plot_tracks(r.M,r.W, 'k.'); 
-  title(sprintf('k=%d, rms=%.6f, alg=%s',k,r.rms,r.alg));
+  title(sprintf('k=%d, rms=%.6f (ratio %.3f), alg=%s',...
+    k,r.rms, r.rms/min([allres.rms]),r.alg));
   waitforbuttonpress; 
 end

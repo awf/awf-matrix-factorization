@@ -22,7 +22,7 @@ if nargin == 0
   return;
 end
 
-opts = awf_mf_lsqnonlin;
+opts = awf_mf_lsqnonlin('opts');
 
 for k=1:length(tests)
   alg=tests(k).alg;
@@ -39,10 +39,22 @@ for k=1:length(tests)
   tic
   switch alg
     case 'lsq'
+      opts.alg = 'lsqnonlin';
       opts.lsopts.Algorithm = 'trust-region-reflective';
       [A,B,lsout] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
     case 'lm'
+      opts.alg = 'lsqnonlin';
       opts.lsopts.Algorithm = 'levenberg-marquardt';
+      [A,B,lsout] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
+    case 'awflm'
+      opts.alg = 'awf';
+      opts.awopts.MaxFunEvals = 10000;
+      opts.awopts.USE_LINMIN = 0;
+      opts.awopts.Display = 'none';
+      [A,B,lsout] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
+    case 'scg'
+      opts.alg = 'scg';
+      opts.lsopts.Algorithm = 'scg';
       [A,B,lsout] = awf_mf_lsqnonlin(W,M,A0,B0, opts);
     case 'dw'
       % [U, V] = damped_wiberg(Y, H, r, Vini) uses Vini as initial values of V
