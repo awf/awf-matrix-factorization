@@ -31,7 +31,7 @@ MATLAB's built-in Levenberg Marquard (or the simple LM from awful.codeplex.com).
     	opts.gauge_fix_weight = 1e-5;
 		[A,B] = awf_mf_lsqnonlin(W,M,A0,B0,opts);
 
-5. or, with au_levmarq
+%5. or, with au_levmarq
 
         opts = awf_mf_lsqnonlin('opts');
 		opts.Algorithm = 'awf';
