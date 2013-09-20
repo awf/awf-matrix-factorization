@@ -6,7 +6,7 @@ function [Aout,Bout,output] = awf_mf_lsqnonlin(W,M,A0,B0, opts)
 if nargin == 1 && strcmp(W, 'opts')
   opts.regularizer_lambda = 0;
   opts.gauge_fix_weight = 0;
-  opts.alg = 'awf'; % options: awf, scg, lsqnonlin
+  opts.alg = 'lsqnonlin'; % options: awf, scg, lsqnonlin
   opts.lsopts = optimset('lsqnonlin');
   opts.lsopts.Algorithm = 'levenberg-marquardt';
   opts.lsopts.LargeScale = 'on';
@@ -38,7 +38,7 @@ if nargin == 0
   opts.regularizer_lambda = 0;
   opts.gauge_fix_weight = 0;
   
-  opts.lsopts.Algorithm = 'scg';
+  %opts.lsopts.Algorithm = 'scg';
   opts.lsopts.MaxIter = 40000;
 
   opts.awopts.MaxFunEvals = 4000;
@@ -154,7 +154,7 @@ switch opts.alg
     output.exitflag = 1;
     output.log_data = log_data;
 
- z  case 'lsqnonlin'
+   case 'lsqnonlin'
     % Call lsqnonlin
     lsopts = opts.lsopts;
     lsopts.Jacobian = 'on';
