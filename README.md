@@ -2,7 +2,7 @@ Matrix Factorization
 ====================
 
 A simple implementation of low-rank matrix factorization using 
-MATLAB's built-in Levenberg Marquard (or the simple LM from awful.codeplex.com).
+MATLAB's built-in Levenberg Marquardt (or the simple LM from awful.codeplex.com).
 
 *Usage*: 
 
